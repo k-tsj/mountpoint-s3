@@ -9,7 +9,7 @@ use mountpoint_s3_fs::object::ObjectId;
 use mountpoint_s3_fs::prefetch::Prefetcher;
 use mountpoint_s3_fs::Runtime;
 
-use fuser::BackgroundSession;
+use mountpoint_s3_fs::fuser::BackgroundSession;
 use rand::{Rng, RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
 use std::fs;

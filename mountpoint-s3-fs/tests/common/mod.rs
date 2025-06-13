@@ -16,7 +16,7 @@ pub mod s3;
 pub mod manifest;
 
 use aws_credential_types::Credentials;
-use fuser::{FileAttr, FileType};
+use mountpoint_s3_fs::fuser::{FileAttr, FileType};
 use futures::executor::ThreadPool;
 use mountpoint_s3_client::config::{
     Allocator, CredentialsProvider, CredentialsProviderStaticOptions, RustLogAdapter, S3ClientAuthConfig,

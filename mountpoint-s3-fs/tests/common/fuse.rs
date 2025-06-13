@@ -4,7 +4,7 @@ use std::os::fd::{AsFd, AsRawFd};
 use std::path::Path;
 use std::sync::Arc;
 
-use fuser::{BackgroundSession, Mount, MountOption, Session};
+use mountpoint_s3_fs::fuser::{BackgroundSession, Mount, MountOption, Session};
 use mountpoint_s3_client::checksums::crc32c;
 use mountpoint_s3_client::config::S3ClientAuthConfig;
 use mountpoint_s3_client::types::{Checksum, PutObjectSingleParams, UploadChecksum};
@@ -174,7 +174,7 @@ where
         MountOption::AllowOther,
     ];
     // `MountOption::AllowOther` corresponds to `SessionACL::All`;
-    let session_acl = fuser::SessionACL::All;
+    let session_acl = mountpoint_s3_fs::fuser::SessionACL::All;
 
     let prefix = Prefix::new(prefix).expect("valid prefix");
     let fs = S3FuseFilesystem::new(
@@ -184,7 +184,7 @@ where
     let (session, mount) = if pass_fuse_fd {
         let (fd, mount) = mount_for_passing_fuse_fd(mount_dir, &options);
         let owned_fd = fd.as_fd().try_clone_to_owned().unwrap();
-        (Session::from_fd(fs, owned_fd, session_acl), Some(mount))
+        (Session::from_fd(fs, owned_fd, session_acl).unwrap(), Some(mount))
     } else {
         (Session::new(fs, mount_dir, &options).unwrap(), None)
     };

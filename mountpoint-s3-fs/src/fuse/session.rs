@@ -50,7 +50,7 @@ impl FuseSession {
 
     /// Create worker threads to dispatch requests for a FUSE session.
     fn from_session<FS: Filesystem + Send + Sync + 'static>(
-        mut session: Session<FS>,
+        session: Session<FS>,
         max_worker_threads: usize,
     ) -> anyhow::Result<Self> {
         assert!(max_worker_threads > 0);

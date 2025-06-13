@@ -3,8 +3,9 @@
 use std::ffi::OsStr;
 use std::time::{Duration, SystemTime};
 use std::path::Path;
-use std::os::fd::{RawFd, AsRawFd};
+use std::os::fd::AsRawFd;
 use std::fmt;
+use std::sync::Arc;
 
 pub mod consts {
     pub const FOPEN_DIRECT_IO: u32 = 1;
@@ -23,7 +24,7 @@ pub enum FileType {
     Socket,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FileAttr {
     pub ino: u64,
     pub size: u64,
@@ -344,12 +345,8 @@ pub trait Filesystem {
     #[cfg(target_os = "macos")]
     fn getxtimes(&self, _req: &Request<'_>, _ino: u64, mut _reply: ReplyXTimes) {}
     fn readdirplus(&self, _req: &Request<'_>, _ino: u64, _fh: u64, _offset: i64, mut _reply: ReplyDirectoryPlus) {}
-    #[cfg(feature = "abi-7-30")]
     fn rename2(&self, _req: &Request<'_>, _parent: u64, _name: &OsStr, _newparent: u64, 
                _newname: &OsStr, _flags: u32, mut _reply: ReplyEmpty) {}
-    #[cfg(feature = "abi-7-30")]
-    fn lseek(&self, _req: &Request<'_>, _ino: u64, _fh: u64, _offset: i64, 
-             _whence: i32, mut _reply: ReplyLseek) {}
 }
 
 // Additional reply types that might be used
@@ -411,7 +408,12 @@ impl<T: Filesystem> Session<T> {
 pub struct BackgroundSession;
 
 impl BackgroundSession {
-    pub fn new(_fs: impl Filesystem + Send + 'static + Sync, _mountpoint: &Path, _options: &[MountOption]) 
+    pub fn new<T: Filesystem + Send + 'static + Sync>(_session: Session<T>) 
+        -> Result<Self, std::io::Error> {
+        Ok(Self)
+    }
+    
+    pub fn spawn(_fs: impl Filesystem + Send + 'static + Sync, _mountpoint: &Path, _options: &[MountOption]) 
         -> Result<Self, std::io::Error> {
         Ok(Self)
     }
@@ -438,7 +440,9 @@ impl SessionUnmounter {
 pub struct Mount;
 
 impl Mount {
-    pub fn new(_mountpoint: &Path, _options: &[MountOption]) -> Result<Self, std::io::Error> {
-        Ok(Self)
+    pub fn new(_mountpoint: &Path, _options: &[MountOption]) -> Result<(Arc<std::fs::File>, Self), std::io::Error> {
+        // Create a dummy file
+        let file = std::fs::File::open("/dev/null").unwrap();
+        Ok((Arc::new(file), Self))
     }
 }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use clap::{value_parser, Parser};
-use fuser::{BackgroundSession, MountOption, Session};
+use mountpoint_s3_fs::fuser::{BackgroundSession, MountOption, Session};
 use mountpoint_s3_client::config::{EndpointConfig, RustLogAdapter, S3ClientConfig};
 use mountpoint_s3_client::S3CrtClient;
 use mountpoint_s3_fs::fuse::S3FuseFilesystem;

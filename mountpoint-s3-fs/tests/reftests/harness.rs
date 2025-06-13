@@ -13,7 +13,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use fuser::FileType;
+use mountpoint_s3_fs::fuser::FileType;
 use futures::future::{BoxFuture, FutureExt};
 use mountpoint_s3_client::mock_client::{MockClient, MockObject};
 use mountpoint_s3_client::ObjectClient;

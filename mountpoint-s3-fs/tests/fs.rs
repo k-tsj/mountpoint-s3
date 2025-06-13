@@ -1,6 +1,6 @@
 //! Manually implemented tests executing the FUSE protocol against [S3Filesystem]
 
-use fuser::FileType;
+use mountpoint_s3_fs::fuser::FileType;
 #[cfg(feature = "s3_tests")]
 use mountpoint_s3_client::config::S3ClientConfig;
 #[cfg(all(feature = "s3_tests", not(feature = "s3express_tests")))]

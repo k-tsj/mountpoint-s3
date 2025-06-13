@@ -34,11 +34,11 @@ pub enum NodeType {
     File,
 }
 
-impl From<NodeType> for fuser::FileType {
+impl From<NodeType> for mountpoint_s3_fs::fuser::FileType {
     fn from(value: NodeType) -> Self {
         match value {
-            NodeType::Directory => fuser::FileType::Directory,
-            NodeType::File => fuser::FileType::RegularFile,
+            NodeType::Directory => mountpoint_s3_fs::fuser::FileType::Directory,
+            NodeType::File => mountpoint_s3_fs::fuser::FileType::RegularFile,
         }
     }
 }
