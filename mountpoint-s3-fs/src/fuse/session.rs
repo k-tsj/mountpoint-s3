@@ -3,8 +3,8 @@ use std::io;
 use anyhow::Context;
 use const_format::formatcp;
 #[cfg(target_os = "linux")]
-use fuser::MountOption;
-use fuser::{Filesystem, Session, SessionUnmounter};
+use crate::fuser::MountOption;
+use crate::fuser::{Filesystem, Request, Session, SessionUnmounter};
 use tracing::{debug, error, trace, warn};
 
 use crate::sync::atomic::{AtomicUsize, Ordering};
@@ -36,14 +36,14 @@ impl FuseSession {
     ) -> anyhow::Result<FuseSession> {
         let session = match fuse_session_config.mount_point {
             MountPoint::Directory(path) => {
-                Session::new(fuse_fs, path, &fuse_session_config.options).context("Failed to create FUSE session")?
+                Session::new(fuse_fs, &path, &fuse_session_config.options).context("Failed to create FUSE session")?
             }
             #[cfg(target_os = "linux")]
             MountPoint::FileDescriptor(fd) => Session::from_fd(
                 fuse_fs,
                 fd,
                 session_acl_from_mount_options(&fuse_session_config.options),
-            ),
+            )?,
         };
         Self::from_session(session, fuse_session_config.max_threads).context("Failed to start FUSE session")
     }
@@ -144,13 +144,13 @@ impl FuseSession {
 #[cfg(target_os = "linux")]
 /// Determines "SessionACL" to use from given mount options.
 /// The logic is same as what fuser's "Mount" does.
-fn session_acl_from_mount_options(options: &[MountOption]) -> fuser::SessionACL {
+fn session_acl_from_mount_options(options: &[MountOption]) -> crate::fuser::SessionACL {
     if options.contains(&MountOption::AllowRoot) {
-        fuser::SessionACL::RootAndOwner
+        crate::fuser::SessionACL::RootAndOwner
     } else if options.contains(&MountOption::AllowOther) {
-        fuser::SessionACL::All
+        crate::fuser::SessionACL::All
     } else {
-        fuser::SessionACL::Owner
+        crate::fuser::SessionACL::Owner
     }
 }
 
@@ -167,8 +167,8 @@ trait Work: Send + Sync + 'static {
     /// before and after each unit of work is processed.
     fn run<FB, FA>(&self, before: FB, after: FA) -> Self::Result
     where
-        FB: FnMut(),
-        FA: FnMut();
+        FB: FnMut() + Send + 'static,
+        FA: FnMut() + Send + 'static;
 }
 
 /// [WorkerPool] organizes a pool of workers, handling the spawning of new workers and registering the new handles with
@@ -254,20 +254,26 @@ impl<W: Work> WorkerPool<W> {
     fn run(self, worker_index: usize) -> W::Result {
         debug!("starting fuse worker {} ({})", worker_index, get_thread_id_string());
 
+        let state = Arc::clone(&self.state);
+        let pool_clone = self.clone();
+        
         self.state.work.run(
-            || {
-                let previous_idle_count = self.state.idle_worker_count.fetch_sub(1, Ordering::SeqCst);
+            move || {
+                let previous_idle_count = state.idle_worker_count.fetch_sub(1, Ordering::SeqCst);
                 metrics::gauge!(METRIC_NAME_FUSE_WORKERS_IDLE).decrement(1);
                 if previous_idle_count == 1 {
                     // This was the only idle thread, try to spawn a new one.
-                    if let Err(error) = self.try_add_worker() {
+                    if let Err(error) = pool_clone.try_add_worker() {
                         warn!(?error, "unable to spawn fuse worker");
                     }
                 }
             },
-            || {
-                self.state.idle_worker_count.fetch_add(1, Ordering::SeqCst);
-                metrics::gauge!(METRIC_NAME_FUSE_WORKERS_IDLE).increment(1);
+            {
+                let state = Arc::clone(&self.state);
+                move || {
+                    state.idle_worker_count.fetch_add(1, Ordering::SeqCst);
+                    metrics::gauge!(METRIC_NAME_FUSE_WORKERS_IDLE).increment(1);
+                }
             },
         )
     }
@@ -291,20 +297,20 @@ where
 
     fn run<FB, FA>(&self, mut before: FB, mut after: FA) -> Self::Result
     where
-        FB: FnMut(),
-        FA: FnMut(),
+        FB: FnMut() + Send + 'static,
+        FA: FnMut() + Send + 'static,
     {
         self.run_with_callbacks(
-            |req| {
+            move |_req: &Request| {
                 // Do not scale threads on bursts of forget messages.
-                if req.is_forget() {
+                if _req.is_forget() {
                     return;
                 }
                 before();
             },
-            |req| {
+            move |_req: &Request| {
                 // Do not scale threads on bursts of forget messages.
-                if req.is_forget() {
+                if _req.is_forget() {
                     return;
                 }
                 after();
@@ -374,8 +380,8 @@ mod tests {
 
         fn run<FB, FA>(&self, mut before: FB, mut after: FA) -> Self::Result
         where
-            FB: FnMut(),
-            FA: FnMut(),
+            FB: FnMut() + Send + 'static,
+            FA: FnMut() + Send + 'static,
         {
             while let Ok(message) = {
                 let receiver = self.receiver.lock().unwrap();
@@ -445,8 +451,8 @@ mod tests {
 
         fn run<FB, FA>(&self, mut before: FB, mut after: FA) -> Self::Result
         where
-            FB: FnMut(),
-            FA: FnMut(),
+            FB: FnMut() + Send + 'static,
+            FA: FnMut() + Send + 'static,
         {
             while let Ok(count) = {
                 let receiver = self.receiver.lock().unwrap();
@@ -527,11 +533,11 @@ mod tests {
     }
 
     #[cfg(target_os = "linux")]
-    #[test_case(&[], fuser::SessionACL::Owner; "empty options")]
-    #[test_case(&[MountOption::AllowOther], fuser::SessionACL::All; "only allows other")]
-    #[test_case(&[MountOption::AllowRoot], fuser::SessionACL::RootAndOwner; "only allows root")]
-    #[test_case(&[MountOption::AllowOther, MountOption::AllowRoot], fuser::SessionACL::RootAndOwner; "allows root and other")]
-    fn test_creating_session_acl_from_mount_options(mount_options: &[MountOption], expected: fuser::SessionACL) {
+    #[test_case(&[], crate::fuser::SessionACL::Owner; "empty options")]
+    #[test_case(&[MountOption::AllowOther], crate::fuser::SessionACL::All; "only allows other")]
+    #[test_case(&[MountOption::AllowRoot], crate::fuser::SessionACL::RootAndOwner; "only allows root")]
+    #[test_case(&[MountOption::AllowOther, MountOption::AllowRoot], crate::fuser::SessionACL::RootAndOwner; "allows root and other")]
+    fn test_creating_session_acl_from_mount_options(mount_options: &[MountOption], expected: crate::fuser::SessionACL) {
         assert_eq!(expected, session_acl_from_mount_options(mount_options));
     }
 }

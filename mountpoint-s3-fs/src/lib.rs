@@ -5,6 +5,7 @@ mod config;
 pub mod data_cache;
 pub mod fs;
 pub mod fuse;
+mod fuser;
 pub mod logging;
 #[cfg(feature = "manifest")]
 pub mod manifest;

@@ -2939,7 +2939,6 @@ dependencies = [
  "linked-hash-map",
  "metrics",
  "mountpoint-s3-client",
- "mountpoint-s3-fuser",
  "nix 0.29.0",
  "predicates",
  "procfs",

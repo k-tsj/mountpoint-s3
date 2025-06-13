@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::time::{Duration, SystemTime};
 
-use fuser::FileType;
+use crate::fuser::FileType;
 use mountpoint_s3_client::checksums::crc32c::{self, Crc32c};
 use mountpoint_s3_client::types::{ETag, RestoreStatus};
 use time::OffsetDateTime;

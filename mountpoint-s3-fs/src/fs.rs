@@ -9,8 +9,8 @@ use thiserror::Error;
 use time::OffsetDateTime;
 use tracing::{debug, trace, Level};
 
-use fuser::consts::FOPEN_DIRECT_IO;
-use fuser::{FileAttr, KernelConfig};
+use crate::fuser::consts::FOPEN_DIRECT_IO;
+use crate::fuser::{FileAttr, KernelConfig};
 use mountpoint_s3_client::types::ChecksumAlgorithm;
 use mountpoint_s3_client::ObjectClient;
 
@@ -206,7 +206,7 @@ where
     pub async fn init(&self, config: &mut KernelConfig) -> Result<(), libc::c_int> {
         const ENV_VAR_KEY_MAX_BACKGROUND: &str = "UNSTABLE_MOUNTPOINT_MAX_BACKGROUND";
         const ENV_VAR_KEY_CONGESTION_THRESHOLD: &str = "UNSTABLE_MOUNTPOINT_CONGESTION_THRESHOLD";
-        let _ = config.add_capabilities(fuser::consts::FUSE_DO_READDIRPLUS);
+        let _ = config.add_capabilities(crate::fuser::consts::FUSE_DO_READDIRPLUS);
         // Set max_background FUSE parameter to 64 by default, or override with environment variable.
         // NOTE: Support for this environment variable may be removed in future without notice.
         if let Some(user_max_background) = std::env::var_os(ENV_VAR_KEY_MAX_BACKGROUND) {
@@ -252,7 +252,7 @@ where
             // This should makes it clear to users that they cannot enable overwrite on their host
             // rather than silently disable it and let users find out later when their writes fail.
             config
-                .add_capabilities(fuser::consts::FUSE_ATOMIC_O_TRUNC)
+                .add_capabilities(crate::fuser::consts::FUSE_ATOMIC_O_TRUNC)
                 .expect("The host must support FUSE_ATOMIC_O_TRUNC capability in order to allow overwrites");
         }
         Ok(())
@@ -916,7 +916,7 @@ mod tests {
 
     use crate::prefetch::Prefetcher;
 
-    use fuser::FileType;
+    use crate::fuser::FileType;
     use futures::executor::ThreadPool;
     use mountpoint_s3_client::mock_client::{MockClient, MockClientConfig, MockObject};
     use mountpoint_s3_client::types::ETag;

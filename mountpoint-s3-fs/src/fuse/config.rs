@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::os::fd::AsRawFd as _;
 
 use anyhow::anyhow;
-use fuser::MountOption;
+use crate::fuser::MountOption;
 use regex::Regex;
 
 /// Configuration for a FUSE background session.
